@@ -1,0 +1,387 @@
+# moxie（小学生语音默写工具）基础设施 —— 独立 CloudFormation 栈 `{project}-{env}`
+#
+# 拓扑：
+#   CloudFront
+#     ├─ /api/*   → Lambda Function URL（moxie 应用，OAC SigV4）
+#     ├─ /audio/* → S3 音频桶（生成的 MP3，内容寻址、不可变，CachingOptimized）
+#     └─ 默认     → S3 前端桶（parent.html / child.html，OAC）
+#
+# 已验证的关键配置（与 site 同源，勿随意改）：
+#   - OAC 需两条 Lambda 权限（InvokeFunctionUrl + InvokeFunction），缺任一 403
+#   - CachingDisabled            = 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+#   - CachingOptimized           = 658327ea-f89d-4fab-a63d-7e88639e58f6
+#   - AllViewerExceptHostHeader  = b689b0a8-53d0-40ab-baf2-68738e2966ac
+#     （/api/* 必须挂它，否则 X-Authorization / X-Device-Token 等自定义头传不到 Lambda）
+#
+# 域名：暂不配 Aliases / ViewerCertificate / ACM，先只用 CloudFront 默认域名跑通。
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Moxie - primary school dictation tool (S3 frontend + audio S3 + Lambda API + DynamoDB)
+
+Parameters:
+  Project:
+    Type: String
+    Default: moxie
+  Environment:
+    Type: String
+    Default: dev
+  LambdaArchitecture:
+    Type: String
+    Default: x86_64
+    AllowedValues: [x86_64, arm64]
+  LambdaMemoryMB:
+    Type: Number
+    Default: 256
+  CodeBucket:
+    Type: String
+    Description: S3 bucket holding the packaged bootstrap.zip
+  CodeKey:
+    Type: String
+    Description: S3 key of the packaged bootstrap.zip
+  WebAdapterLayerArn:
+    Type: String
+    Description: AWS Lambda Web Adapter layer ARN（x86_64）
+    Default: "arn:aws:lambda:us-west-2:753240598075:layer:LambdaAdapterLayerX86:28"
+  DomainName:
+    Type: String
+    Default: ""
+    Description: 自定义域名（如 moxie.example.com）。留空则只用 CloudFront 默认域名。
+  AcmCertificateArn:
+    Type: String
+    Default: ""
+    Description: >-
+      us-east-1 的 ACM 证书 ARN。CloudFront 的证书**必须**在该区域，
+      即使栈本身在 us-west-2。证书由 infra/issue-cert.sh 签发导入。
+
+Conditions:
+  # 只有域名和证书都给了才挂 Aliases + ViewerCertificate。
+  # 这样不带域名的部署依然可用（退回 CloudFront 默认域名）。
+  HasCustomDomain: !And
+    - !Not [!Equals [!Ref DomainName, ""]]
+    - !Not [!Equals [!Ref AcmCertificateArn, ""]]
+
+Resources:
+  # ---------- DynamoDB：单表（家长/孩子/词表/绑定码），无需 GSI ----------
+  DataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${Project}-${Environment}-data"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # ---------- S3：前端静态托管（parent.html / child.html） ----------
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${Project}-${Environment}-frontend"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  # 关键：S3 OAC 需要 bucket policy 授信（仅允许本 distribution 的 OAC 签名访问）
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${FrontendBucket}/*"
+            Condition:
+              StringEquals:
+                "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${ApiDistribution}"
+
+  # ---------- S3：音频桶（Polly 生成的 MP3，内容寻址不可变） ----------
+  # 不开启版本控制：key 是内容哈希，同名即同内容，版本控制只会白涨存储费。
+  # 桶内文件全部由 Lambda 运行时写入，部署脚本不上传任何东西。
+  AudioBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${Project}-${Environment}-audio"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  AudioBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AudioBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${AudioBucket}/*"
+            Condition:
+              StringEquals:
+                "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${ApiDistribution}"
+
+  # ---------- IAM ----------
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: moxie-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Logs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Sid: DynamoDB
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:DeleteItem
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt DataTable.Arn
+                  - !Sub "${DataTable.Arn}/*"
+              - Sid: SSMSecrets
+                Effect: Allow
+                Action:
+                  - ssm:GetParametersByPath
+                  - ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${Project}/${Environment}/*"
+              - Sid: SSMDecrypt
+                Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/ssm"
+              # 发音音频合成。Polly 不支持资源级 ARN，只能 "*"。
+              - Sid: Polly
+                Effect: Allow
+                Action:
+                  - polly:SynthesizeSpeech
+                Resource: "*"
+              # 词表 OCR（图片识别）。Bedrock 同样只能 "*"。
+              - Sid: Bedrock
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: "*"
+              # 音频读写（写新 MP3 / 读已有以命中去重）
+              - Sid: AudioS3
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:HeadObject
+                Resource:
+                  - !GetAtt AudioBucket.Arn
+                  - !Sub "${AudioBucket.Arn}/*"
+
+  # ---------- Lambda：moxie 应用（单函数打天下） ----------
+  MoxieFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${Project}-${Environment}-api"
+      Runtime: provided.al2023
+      Handler: bootstrap
+      Architectures:
+        - !Ref LambdaArchitecture
+      MemorySize: !Ref LambdaMemoryMB
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Layers:
+        - !Ref WebAdapterLayerArn
+      Environment:
+        Variables:
+          OPERON_PROJECT: !Ref Project
+          OPERON_ENV: !Ref Environment
+          OPERON_SECRETS_PATH: !Sub "/${Project}/${Environment}/"
+          OPERON_TABLE_PREFIX: !Sub "${Project}-${Environment}-"
+          OPERON_MOXIE_AUDIO_BUCKET: !Ref AudioBucket
+          RUST_LOG: "info,aws_config=warn,aws_smithy=warn"
+          PORT: "8080"
+      Tags:
+        - Key: project
+          Value: !Ref Project
+
+  # ---------- Function URL（AWS_IAM 认证，只允许 CloudFront OAC 调） ----------
+  MoxieFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref MoxieFunction
+      AuthType: AWS_IAM
+      Cors:
+        AllowOrigins: ["*"]
+        AllowMethods: ["*"]
+        AllowHeaders: ["*"]
+
+  # OAC 需要的两条权限（缺任一都会 403 AccessDeniedException）
+  MoxieFunctionUrlInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunctionUrl
+      FunctionName: !Ref MoxieFunction
+      Principal: cloudfront.amazonaws.com
+      SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${ApiDistribution}"
+      FunctionUrlAuthType: AWS_IAM
+  MoxieFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref MoxieFunction
+      Principal: cloudfront.amazonaws.com
+      SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${ApiDistribution}"
+
+  # ---------- CloudFront OAC ×3（Lambda + 前端 S3 + 音频 S3） ----------
+  LambdaOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${Project}-${Environment}-lambda-oac"
+        OriginAccessControlOriginType: lambda
+        SigningBehavior: always
+        SigningProtocol: sigv4
+  FrontendOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${Project}-${Environment}-frontend-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+  AudioOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${Project}-${Environment}-audio-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # ---------- CloudFront：三 origin + 三 behavior ----------
+  ApiDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub "${Project}-${Environment} Moxie dictation tool"
+        Enabled: true
+        PriceClass: PriceClass_100
+        HttpVersion: http2
+        # 默认落到孩子端页面（家长端显式访问 /parent.html）
+        DefaultRootObject: child.html
+        # 自定义域名（未配置时这两项不生成）
+        Aliases: !If
+          - HasCustomDomain
+          - - !Ref DomainName
+          - !Ref "AWS::NoValue"
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref AcmCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: LambdaOrigin
+            DomainName: !Select [2, !Split ["/", !GetAtt MoxieFunctionUrl.FunctionUrl]]
+            OriginAccessControlId: !Ref LambdaOriginAccessControl
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+          - Id: FrontendOrigin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref FrontendOriginAccessControl
+            S3OriginConfig: {}
+          - Id: AudioOrigin
+            DomainName: !GetAtt AudioBucket.RegionalDomainName
+            OriginAccessControlId: !Ref AudioOriginAccessControl
+            S3OriginConfig: {}
+        CacheBehaviors:
+          # /api/* → Lambda。OriginRequestPolicy 必须挂：否则自定义头
+          # （X-Authorization / X-Device-Token）不会转发到 Lambda。
+          - PathPattern: /api/*
+            TargetOriginId: LambdaOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            AllowedMethods:
+              - DELETE
+              - GET
+              - HEAD
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachedMethods: [GET, HEAD]
+          # /audio/* → 音频桶。内容寻址不可变，放心长缓存；无需 OriginRequestPolicy。
+          - PathPattern: /audio/*
+            TargetOriginId: AudioOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+        # 默认 → 前端 S3 静态站点（child.html / parent.html）
+        DefaultCacheBehavior:
+          TargetOriginId: FrontendOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+
+Outputs:
+  SiteUrl:
+    Description: 站点主 URL（配了自定义域名则用域名，否则用 CloudFront 默认域名）
+    Value: !If
+      - HasCustomDomain
+      - !Sub "https://${DomainName}"
+      - !Sub "https://${ApiDistribution.DomainName}"
+  CloudFrontUrl:
+    Description: 站点 URL（CloudFront 默认域名，始终可用）
+    Value: !Sub "https://${ApiDistribution.DomainName}"
+  CloudFrontDomain:
+    Value: !GetAtt ApiDistribution.DomainName
+  DistributionId:
+    Value: !Ref ApiDistribution
+  FunctionUrl:
+    Description: Lambda Function URL（需 SigV4 签名）
+    Value: !GetAtt MoxieFunctionUrl.FunctionUrl
+  DataTableName:
+    Value: !Ref DataTable
+  FrontendBucket:
+    Value: !Ref FrontendBucket
+  AudioBucket:
+    Value: !Ref AudioBucket
+  JwtSeedParameter:
+    Description: SSM 中 JWT 种子参数名
+    Value: !Sub "/${Project}/${Environment}/jwt_seed"

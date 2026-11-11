@@ -1,0 +1,10 @@
+{
+  "Project": "moxie",
+  "Environment": "dev",
+  "LambdaArchitecture": "x86_64",
+  "LambdaMemoryMB": "256",
+  "CodeBucket": "",
+  "WebAdapterLayerArn": "arn:aws:lambda:us-west-2:753240598075:layer:LambdaAdapterLayerX86:28",
+  "DomainName": "",
+  "AcmCertificateArn": ""
+}

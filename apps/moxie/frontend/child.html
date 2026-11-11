@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<!-- 孩子端：禁缩放（user-scalable=no），平板横竖屏都要能用 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>默写小助手</title>
+<style>
+  /* ------------------------------------------------ 主题变量（沿用项目深色风格） */
+  :root{
+    --primary:#2563eb;--primary-dark:#1e40af;--bg:#0b1220;--bg-soft:#111a2e;
+    --card:#16203a;--text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;
+    --success:#22c55e;--error:#ef4444;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+
+  html,body{height:100%;}
+
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.5;
+    /* 禁长按选中 / 禁双击缩放，避免孩子误触 */
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+    touch-action:manipulation;overscroll-behavior:none;
+  }
+
+  /* ------------------------------------------------ 视图骨架 */
+  .view{
+    display:flex;flex-direction:column;
+    min-height:100vh;min-height:100dvh;
+    padding:calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom));
+    overflow-y:auto;
+  }
+  .inner{flex:1;display:flex;flex-direction:column;width:100%;max-width:920px;margin:0 auto;}
+  .inner.center{align-items:center;text-align:center;}
+  /* 用弹性空块做垂直居中：内容超长时它会缩到 0，不会把顶部内容顶出屏幕 */
+  .inner.center::before,.inner.center::after{content:'';flex:1 1 0;min-height:0;}
+  .hidden{display:none !important;}
+  .muted{color:var(--muted);}
+
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;touch-action:manipulation;color:var(--text);}
+  button:disabled{opacity:.5;cursor:default;}
+
+  /* ------------------------------------------------ 绑定页 */
+  .bind-title{font-size:clamp(1.8rem,8vw,2.6rem);font-weight:800;letter-spacing:.05em;}
+  .bind-sub{color:var(--muted);font-size:clamp(1rem,4vw,1.2rem);margin-top:14px;max-width:30em;}
+  .code-input{
+    width:100%;max-width:420px;margin:34px auto 0;display:block;
+    padding:18px 10px;text-align:center;
+    font-size:clamp(2rem,10vw,3rem);font-weight:800;
+    letter-spacing:.35em;text-indent:.35em;text-transform:uppercase;
+    background:var(--bg-soft);color:var(--text);
+    border:2px solid #334155;border-radius:12px;
+    user-select:text;-webkit-user-select:text;
+  }
+  .code-input:focus{outline:none;border-color:var(--primary);}
+  .btn-bind{
+    width:100%;max-width:420px;margin:22px auto 0;display:block;
+    min-height:88px;font-size:clamp(1.4rem,6vw,1.9rem);font-weight:800;
+    background:linear-gradient(180deg,var(--primary),var(--primary-dark));color:#fff;
+  }
+  .btn-bind:active{opacity:.9;}
+  .msg{margin:18px auto 0;max-width:420px;padding:14px 16px;border-radius:8px;
+       font-size:clamp(1rem,4vw,1.1rem);display:none;}
+  .msg.show{display:block;}
+  .msg.err{background:rgba(239,68,68,.12);color:var(--error);border:1px solid rgba(239,68,68,.35);}
+  .bind-tip{margin-top:auto;padding-top:26px;color:var(--muted);font-size:.95rem;text-align:center;}
+
+  /* ------------------------------------------------ 默写页 */
+  .progress-num{font-size:clamp(1.7rem,7vw,2.6rem);font-weight:800;text-align:center;letter-spacing:.03em;}
+  .bar{height:14px;background:#1e293b;border-radius:999px;overflow:hidden;margin-top:12px;}
+  .bar > i{display:block;height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .25s ease;}
+  .status{text-align:center;color:var(--muted);font-size:clamp(.95rem,3.6vw,1.15rem);margin-top:10px;min-height:1.6em;}
+  .status.playing{color:var(--accent);font-weight:700;}
+
+  .stage{flex:1;display:flex;padding:18px 0;min-height:0;}
+  .btn-main{
+    flex:1;width:100%;min-height:170px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:clamp(2rem,9vw,3.4rem);font-weight:800;letter-spacing:.12em;text-indent:.12em;
+    color:#fff;border-radius:12px;
+    background:linear-gradient(180deg,var(--primary),var(--primary-dark));
+    box-shadow:0 8px 0 #142a5e;
+  }
+  .btn-main:active{transform:translateY(3px);box-shadow:0 5px 0 #142a5e;}
+  /* 播放中：主按钮变暗，提示"这一遍还没念完" */
+  .btn-main.playing{opacity:.5;box-shadow:0 8px 0 #142a5e;}
+
+  .row{display:flex;gap:14px;}
+  .btn-side{
+    flex:1;min-height:88px;
+    font-size:clamp(1.25rem,5vw,1.8rem);font-weight:700;
+    background:var(--card);border:1px solid #1e293b;
+  }
+  .btn-side:active{background:var(--bg-soft);}
+
+  .repeat-row{display:flex;align-items:center;gap:14px;margin-top:14px;}
+  .repeat-label{color:var(--muted);font-size:clamp(.95rem,3.6vw,1.1rem);white-space:nowrap;}
+  .seg{display:flex;gap:12px;flex:1;}
+  .seg button{
+    flex:1;min-height:72px;font-weight:800;
+    font-size:clamp(1.15rem,4.6vw,1.5rem);
+    background:var(--card);border:1px solid #1e293b;color:var(--muted);
+  }
+  .seg button.on{background:rgba(56,189,248,.15);border-color:var(--accent);color:var(--accent);}
+
+  /* ------------------------------------------------ 开始遮罩 */
+  .overlay{
+    position:fixed;inset:0;z-index:20;
+    background:rgba(11,18,32,.96);
+    display:flex;align-items:center;justify-content:center;
+    padding:24px;
+  }
+  .overlay-inner{width:100%;max-width:560px;text-align:center;}
+  .overlay-title{font-size:clamp(1.8rem,8vw,2.6rem);font-weight:800;}
+  .overlay-sub{color:var(--muted);font-size:clamp(1rem,4vw,1.15rem);margin-top:12px;min-height:1.6em;}
+  .overlay .btn-main{margin-top:26px;flex:none;min-height:150px;}
+
+  /* ------------------------------------------------ 完成页 */
+  .done-title{font-size:clamp(2.6rem,14vw,4.5rem);font-weight:900;color:var(--success);letter-spacing:.05em;}
+  .stats{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:24px;}
+  .stat{background:var(--bg-soft);border:1px solid #1e293b;border-radius:12px;padding:14px 24px;min-width:104px;}
+  .stat .n{font-size:clamp(1.4rem,6vw,1.9rem);font-weight:800;color:var(--accent);}
+  .stat .l{font-size:.9rem;color:var(--muted);}
+  .done-actions{display:flex;gap:14px;margin-top:30px;flex-wrap:wrap;width:100%;justify-content:center;}
+  .btn-lg{
+    flex:1;min-width:180px;min-height:88px;
+    font-size:clamp(1.25rem,5vw,1.7rem);font-weight:800;
+    background:var(--primary);color:#fff;
+  }
+  .btn-lg.ghost{background:var(--card);border:1px solid #1e293b;}
+  .btn-lg:active{opacity:.9;}
+
+  .answers{margin-top:26px;width:100%;}
+  .answers-title{font-size:clamp(1.1rem,4.4vw,1.4rem);color:var(--accent);font-weight:700;margin-bottom:16px;}
+  .answers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:12px;}
+  .answers-grid .w{
+    background:var(--card);border:1px solid #1e293b;border-radius:12px;
+    padding:12px 8px;text-align:center;
+    font-size:clamp(1.4rem,6vw,2rem);font-weight:800;letter-spacing:.06em;
+  }
+  .answers-grid .w .n{display:block;font-size:.7rem;font-weight:500;color:var(--muted);letter-spacing:0;}
+  .pad{padding:20px 0;}
+
+  /* ------------------------------------------------ 错误 / 加载页 */
+  .err-title{font-size:clamp(1.5rem,6.5vw,2.2rem);font-weight:800;}
+  .err-msg{color:var(--muted);font-size:clamp(1rem,4vw,1.15rem);margin-top:14px;max-width:32em;}
+  .err-title + .err-msg + .btn-lg{margin-top:28px;flex:none;width:100%;max-width:420px;}
+  .spinner{
+    width:56px;height:56px;border-radius:50%;margin-bottom:20px;
+    border:6px solid #1e293b;border-top-color:var(--accent);
+    animation:spin 1s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ------------------------------------------------ 矮屏 / 横屏适配（字号收一收，触摸目标仍 ≥88px） */
+  @media (orientation:landscape) and (max-height:600px){
+    .progress-num{font-size:1.5rem;}
+    .status{font-size:.95rem;margin-top:6px;}
+    .stage{padding:12px 0;}
+    .btn-main{min-height:120px;font-size:2rem;}
+    .btn-side{min-height:88px;font-size:1.15rem;}
+    .seg button{min-height:60px;}
+    .overlay .btn-main{min-height:110px;}
+    .done-title{font-size:2.6rem;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================== 绑定视图 ============================== -->
+<section id="bindView" class="view">
+  <div class="inner center">
+    <div class="bind-title">默写小助手</div>
+    <div class="bind-sub">请家长在手机上点「绑定设备」，把 6 位绑定码念给小朋友听。</div>
+    <input id="codeInput" class="code-input" type="text" inputmode="text"
+           maxlength="6" autocomplete="off" autocorrect="off" autocapitalize="characters"
+           spellcheck="false" placeholder="ABC234">
+    <button id="bindBtn" class="btn-bind">绑 定</button>
+    <div id="bindMsg" class="msg"></div>
+  </div>
+  <div class="bind-tip">绑定后这台平板就能收到家长下发的词语啦</div>
+</section>
+
+<!-- ============================== 加载视图 ============================== -->
+<section id="loadingView" class="view hidden">
+  <div class="inner center">
+    <div class="spinner"></div>
+    <div id="loadingText" class="muted">正在准备…</div>
+  </div>
+</section>
+
+<!-- ============================== 默写视图 ============================== -->
+<section id="dictationView" class="view hidden">
+  <div class="inner">
+    <div id="progressNum" class="progress-num">第 1 / 1 个</div>
+    <div class="bar"><i id="progressBar"></i></div>
+    <div id="statusLine" class="status"></div>
+
+    <div class="stage">
+      <button id="nextBtn" class="btn-main">下一个</button>
+    </div>
+
+    <div class="row">
+      <button id="prevBtn" class="btn-side">上一个</button>
+      <button id="replayBtn" class="btn-side">重读</button>
+    </div>
+
+    <div class="repeat-row">
+      <span class="repeat-label">播报遍数</span>
+      <div class="seg">
+        <button id="rep1" data-r="1">① 遍</button>
+        <button id="rep2" data-r="2">② 遍</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 开始遮罩：给浏览器一个"用户手势"，顺便等音频预热 -->
+  <div id="startOverlay" class="overlay hidden">
+    <div class="overlay-inner">
+      <div class="overlay-title">准备好了吗？</div>
+      <div id="preloadHint" class="overlay-sub">音频准备中…</div>
+      <button id="startBtn" class="btn-main">开始默写</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== 完成视图 ============================== -->
+<section id="completeView" class="view hidden">
+  <div class="inner center">
+    <div class="done-title">完成！</div>
+    <div id="statsBox" class="stats"></div>
+    <div class="done-actions">
+      <button id="answersBtn" class="btn-lg">看答案</button>
+      <button id="againBtn" class="btn-lg ghost">再来一遍</button>
+    </div>
+    <div id="answersBox" class="answers hidden"></div>
+  </div>
+</section>
+
+<!-- ============================== 错误视图 ============================== -->
+<section id="errorView" class="view hidden">
+  <div class="inner center">
+    <div id="errorTitle" class="err-title">出了点小问题</div>
+    <div id="errorMsg" class="err-msg"></div>
+    <button id="retryBtn" class="btn-lg">重试</button>
+  </div>
+</section>
+
+<script>
+'use strict';
+
+// ==================================================================== 常量 / 状态
+const TOKEN_KEY = 'moxie_device_token';
+
+// 与后端一致的绑定码字母表（无 0/O/1/I/L 等易混字符）
+const CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+
+let deviceToken = localStorage.getItem(TOKEN_KEY) || '';
+
+let items = [];        // [{a1,a2}] 服务端下发的纯音频条目，**不含任何汉字**
+let audioPairs = [];   // [{a1:Audio|null, a2:Audio|null}] 与 items 一一对应
+let idx = 0;           // 当前第几个（0 基）
+let repeat = 1;        // 播报遍数：1=用 a1，2=用 a2（服务端生成的"念两遍"版本）
+let started = false;   // 本轮是否已经开始（没开始时点屏幕不推进）
+let view = 'bind';     // 当前视图名
+let playing = false;   // 是否正在播报（播放中屏蔽重复触发）
+let currentAudio = null;
+let watchdog = null;   // 兜底计时器：ended 没触发时也要解锁
+let startedAt = 0;     // 本轮开始时间，用于统计用时
+let retryHandler = null;
+
+// 音频预热进度
+let preloadTotal = 0, preloadDone = 0;
+
+// ==================================================================== 小工具
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function $(id){ return document.getElementById(id); }
+
+/** POST 必须带 x-amz-content-sha256；crypto.subtle 需要 HTTPS 或 localhost */
+async function sha256Hex(text){
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+/** 统一 API 封装：错误形状固定为 {error:{code,message}}；401 由调用方处理 */
+async function api(path, { method = 'GET', body = null, device = null } = {}){
+  const headers = {};
+  if (body !== null){
+    headers['Content-Type'] = 'application/json';
+    headers['x-amz-content-sha256'] = await sha256Hex(body); // Function URL 必需
+  }
+  if (device) headers['X-Device-Token'] = device;            // 孩子端认证头
+  const res = await fetch(path, { method, headers, body });
+  let data = {};
+  try { data = await res.json(); } catch (e) { /* 非 JSON 响应 */ }
+  if (!res.ok){
+    const err = new Error(data.error?.message || `请求失败（${res.status}）`);
+    err.status = res.status;
+    err.code = data.error?.code;
+    throw err;
+  }
+  return data;
+}
+
+const VIEW_IDS = { bind:'bindView', loading:'loadingView', dictation:'dictationView', complete:'completeView', error:'errorView' };
+function showView(name){
+  view = name;
+  for (const k in VIEW_IDS) $(VIEW_IDS[k]).classList.toggle('hidden', k !== name);
+}
+
+// ==================================================================== 屏幕常亮
+let wakeLock = null;
+async function requestWakeLock(){
+  if (!('wakeLock' in navigator)) return; // 不支持 → 静默降级
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch (e) {
+    // 非 HTTPS / 页面不可见 / 系统拒绝 —— 一律静默降级，不能因此用不了
+  }
+}
+// 切到后台系统会释放锁，回到前台要重新申请
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
+});
+
+// ==================================================================== 绑定
+function setBindMsg(text, isErr){
+  const el = $('bindMsg');
+  el.textContent = text || '';
+  el.className = 'msg' + (text ? ' show' : '') + (isErr ? ' err' : '');
+}
+
+async function doBind(){
+  const code = $('codeInput').value.trim().toUpperCase();
+  if (code.length !== 6){ setBindMsg('请输入 6 位绑定码', true); return; }
+  if (!(window.crypto && crypto.subtle)){
+    setBindMsg('当前访问方式不支持加密，请用 https 打开本页面', true);
+    return;
+  }
+  const btn = $('bindBtn');
+  btn.disabled = true; btn.textContent = '绑定中…';
+  setBindMsg('');
+  try {
+    const data = await api('/api/kid/bind', { method:'POST', body: JSON.stringify({ code }) });
+    if (!data || !data.device_token) throw new Error('绑定失败，请重试');
+    deviceToken = data.device_token;
+    localStorage.setItem(TOKEN_KEY, deviceToken);
+    $('codeInput').value = '';
+    await loadSession();
+  } catch (e) {
+    setBindMsg(e.status ? e.message : '网络好像断开了，检查一下平板的网络，然后再试一次。', true);
+  } finally {
+    btn.disabled = false; btn.textContent = '绑 定';
+  }
+}
+
+/** 令牌失效 / 被家长解绑 → 清本地令牌回到绑定页 */
+function logoutToBind(){
+  localStorage.removeItem(TOKEN_KEY);
+  deviceToken = '';
+  resetSession();
+  setBindMsg('');
+  $('codeInput').value = '';
+  showView('bind');
+}
+
+// ==================================================================== 音频
+function makeAudio(url){
+  const a = new Audio();
+  a.preload = 'auto';
+  a.src = url;
+  let counted = false;
+  const countOnce = () => { if (counted) return; counted = true; countPreload(); };
+  a.addEventListener('ended', () => { if (currentAudio === a) finishPlaying(); });
+  a.addEventListener('error', () => {
+    countOnce();
+    if (currentAudio === a){ finishPlaying(); toast('这个音频没加载出来，点「重读」再试一次'); }
+  });
+  ['loadeddata','canplaythrough'].forEach(ev => a.addEventListener(ev, countOnce));
+  return a;
+}
+function countPreload(){
+  preloadDone++;
+  updatePreloadHint();
+}
+function updatePreloadHint(){
+  const el = $('preloadHint');
+  if (!el) return;
+  if (!preloadTotal){ el.textContent = ''; return; }
+  el.textContent = preloadDone >= preloadTotal
+    ? '音频已就绪，开始吧'
+    : `音频准备中 ${preloadDone} / ${preloadTotal}…`;
+}
+
+function disposeAudio(){
+  audioPairs.forEach(pair => {
+    if (!pair) return;
+    [pair.a1, pair.a2].forEach(a => {
+      if (!a) return;
+      try { a.pause(); a.removeAttribute('src'); a.load(); } catch (e) {}
+    });
+  });
+  audioPairs = [];
+}
+
+function stopAudio(){
+  clearTimeout(watchdog); watchdog = null;
+  if (currentAudio){
+    try { currentAudio.pause(); currentAudio.currentTime = 0; } catch (e) {}
+  }
+  currentAudio = null;
+  playing = false;
+  updatePlayUI();
+}
+
+function finishPlaying(){
+  clearTimeout(watchdog); watchdog = null;
+  currentAudio = null;
+  playing = false;
+  updatePlayUI();
+}
+
+function updatePlayUI(){
+  $('nextBtn').classList.toggle('playing', playing);
+  const st = $('statusLine');
+  if (playing){ st.textContent = '正在念…'; st.classList.add('playing'); }
+  else { st.textContent = started ? '写完就点「下一个」' : ''; st.classList.remove('playing'); }
+}
+
+/** 播放当前这个词（重读也用这个） */
+function playCurrent(){
+  if (!items.length || !started) return;
+  const pair = audioPairs[idx];
+  if (!pair) return;
+  const a = repeat === 2 ? (pair.a2 || pair.a1) : (pair.a1 || pair.a2);
+  if (!a){ toast('这个词语还没有音频'); return; }
+
+  stopAudio();               // 先掐掉上一遍，避免声音叠在一起
+  currentAudio = a;
+  playing = true;
+  updatePlayUI();
+
+  try { a.currentTime = 0; } catch (e) {}
+  const p = a.play();
+  if (p && typeof p.catch === 'function'){
+    p.catch(() => {
+      if (currentAudio !== a) return;
+      finishPlaying();
+      toast('没听到声音？点一下「重读」试试');
+    });
+  }
+  // 兜底：万一 ended 事件没来，按音频时长解锁
+  const dur = (isFinite(a.duration) && a.duration > 0) ? a.duration : 8;
+  clearTimeout(watchdog);
+  watchdog = setTimeout(() => { if (currentAudio === a) finishPlaying(); }, dur * 1000 + 2000);
+}
+
+let toastTimer = null;
+function toast(text){
+  const st = $('statusLine');
+  st.textContent = text;
+  st.classList.remove('playing');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(updatePlayUI, 2600);
+}
+
+// ==================================================================== 会话
+function resetSession(){
+  stopAudio();          // 先掐掉正在播的音频，再释放
+  started = false;
+  idx = 0;
+  disposeAudio();
+  items = [];
+  preloadTotal = 0; preloadDone = 0;
+  hideStartOverlay();
+}
+
+/** 拉取今天的词表（响应里没有汉字，页面也绝不渲染词） */
+async function loadSession(){
+  resetSession();
+  $('loadingText').textContent = '正在准备今天的词语…';
+  showView('loading');
+  try {
+    const data = await api('/api/kid/current', { device: deviceToken });
+    buildSession(data);
+    if (!items.length){
+      showError('还没有收到词语', '请家长先在手机上把今天要默写的词语发下来。', loadSession);
+      return;
+    }
+    showView('dictation');
+    updateProgress();
+    showStartOverlay();
+    requestWakeLock();
+  } catch (e) {
+    if (e.status === 401){ logoutToBind(); return; }
+    // 没有 status = 请求根本没发出去（断网/服务不可达），给一句孩子看得懂的话
+    showError('没能拿到今天的词语',
+      e.status ? e.message : '网络好像断开了，检查一下平板的网络，然后再试一次。',
+      loadSession);
+  }
+}
+
+function buildSession(data){
+  items = Array.isArray(data && data.items) ? data.items : [];
+  idx = 0;
+  repeat = (data && data.default_repeat === 2) ? 2 : 1;
+  updateRepeatUI();
+
+  // 预加载全部音频，避免点一下等半天
+  preloadTotal = 0;
+  audioPairs = items.map(it => {
+    const pair = {
+      a1: it && it.a1 ? makeAudio(it.a1) : null,
+      a2: it && it.a2 ? makeAudio(it.a2) : null,
+    };
+    if (pair.a1) preloadTotal++;
+    if (pair.a2) preloadTotal++;
+    return pair;
+  });
+  preloadDone = 0;
+  updatePreloadHint();
+}
+
+// ==================================================================== 默写交互
+function updateProgress(){
+  const total = items.length || 1;
+  $('progressNum').textContent = `第 ${idx + 1} / ${items.length} 个`;
+  $('progressBar').style.width = `${((idx + 1) / total) * 100}%`;
+}
+
+function updateRepeatUI(){
+  $('rep1').classList.toggle('on', repeat === 1);
+  $('rep2').classList.toggle('on', repeat === 2);
+}
+
+function showStartOverlay(){ $('startOverlay').classList.remove('hidden'); }
+function hideStartOverlay(){ $('startOverlay').classList.add('hidden'); }
+
+/** 开始（或再来一遍）：回到第 1 个词 */
+function startDictation(){
+  if (!items.length) return;
+  showView('dictation');   // 「再来一遍」是从完成页过来的，必须切回默写页
+  hideStartOverlay();
+  started = true;
+  startedAt = Date.now();
+  idx = 0;
+  updateProgress();
+  updatePlayUI();
+  requestWakeLock();
+  playCurrent();
+}
+
+function next(){
+  if (!started || playing) return;         // 播放中不推进，防止声音叠在一起
+  if (idx >= items.length - 1){ toComplete(); return; }
+  idx++;
+  updateProgress();
+  playCurrent();
+}
+
+function prev(){
+  if (!started || playing) return;
+  if (idx > 0) idx--;
+  updateProgress();
+  playCurrent();
+}
+
+function replay(){
+  if (!started) return;                    // 「重读」在播放中也可以打断重念
+  playCurrent();
+}
+
+function setRepeat(r){
+  if (repeat === r) return;
+  repeat = r;
+  updateRepeatUI();
+  // 切换后立刻用新版本重念当前这个词，孩子能马上听到区别
+  if (started && view === 'dictation') playCurrent();
+}
+
+// ==================================================================== 完成页
+function fmtDuration(sec){
+  if (sec < 60) return `${sec} 秒`;
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return s ? `${m} 分 ${s} 秒` : `${m} 分钟`;
+}
+
+function toComplete(){
+  started = false;
+  stopAudio();
+  updatePlayUI();
+  const secs = startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 1000)) : 0;
+  $('statsBox').innerHTML = [
+    `<div class="stat"><div class="n">${items.length}</div><div class="l">个词语</div></div>`,
+    `<div class="stat"><div class="n">${repeat}</div><div class="l">遍播报</div></div>`,
+    `<div class="stat"><div class="n">${escapeHtml(fmtDuration(secs))}</div><div class="l">用时</div></div>`,
+  ].join('');
+  $('answersBox').classList.add('hidden');
+  $('answersBox').innerHTML = '';
+  showView('complete');
+}
+
+async function toggleAnswers(){
+  const box = $('answersBox');
+  if (!box.classList.contains('hidden')){  // 再看一次 = 收起
+    box.classList.add('hidden');
+    box.innerHTML = '';
+    return;
+  }
+  box.classList.remove('hidden');
+  box.innerHTML = '<div class="muted pad">正在加载答案…</div>';
+  $('answersBtn').disabled = true;
+  try {
+    const data = await api('/api/kid/answers', { device: deviceToken });
+    const words = Array.isArray(data) ? data : ((data && data.words) || []);
+    const title = (!Array.isArray(data) && data && data.title) ? data.title : '';
+    box.innerHTML =
+      (title ? `<div class="answers-title">${escapeHtml(title)}</div>` : '') +
+      `<div class="answers-grid">${words.map((w, i) =>
+        `<div class="w"><span class="n">${i + 1}</span>${escapeHtml(w)}</div>`).join('')}</div>`;
+  } catch (e) {
+    if (e.status === 401){ logoutToBind(); return; }
+    box.innerHTML = `<div class="muted pad">答案加载失败：${escapeHtml(e.message)}</div>`;
+  } finally {
+    $('answersBtn').disabled = false;
+  }
+}
+
+// ==================================================================== 错误页
+function showError(title, msg, onRetry){
+  $('errorTitle').textContent = title;
+  $('errorMsg').textContent = msg || '';
+  retryHandler = onRetry || null;
+  $('retryBtn').classList.toggle('hidden', !retryHandler);
+  showView('error');
+}
+
+// ==================================================================== 事件绑定
+$('codeInput').addEventListener('input', e => {
+  // 输入时自动转大写
+  e.target.value = e.target.value.toUpperCase().replace(/\s/g, '').slice(0, 6);
+});
+$('codeInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter'){ e.preventDefault(); doBind(); }
+});
+$('bindBtn').addEventListener('click', doBind);
+
+$('nextBtn').addEventListener('click', () => {
+  if (view !== 'dictation') return;
+  if (started) next(); else startDictation();
+});
+$('prevBtn').addEventListener('click', prev);
+$('replayBtn').addEventListener('click', replay);
+$('rep1').addEventListener('click', () => setRepeat(1));
+$('rep2').addEventListener('click', () => setRepeat(2));
+$('startBtn').addEventListener('click', startDictation);
+$('answersBtn').addEventListener('click', toggleAnswers);
+$('againBtn').addEventListener('click', startDictation);
+$('retryBtn').addEventListener('click', () => { if (retryHandler) retryHandler(); });
+
+// 整屏点击 = 下一个（按钮本身的区域除外）
+$('dictationView').addEventListener('click', e => {
+  const t = e.target;
+  if (t && t.closest && t.closest('button')) return;
+  next();
+});
+
+// 键盘快捷键：空格=下一个、←=上一个、R=重读
+document.addEventListener('keydown', e => {
+  if (view !== 'dictation') return;
+  if (!started){
+    if (e.code === 'Space' || e.key === 'Enter'){ e.preventDefault(); startDictation(); }
+    return;
+  }
+  if (e.code === 'Space' || e.key === ' '){ e.preventDefault(); next(); }
+  else if (e.key === 'ArrowLeft'){ e.preventDefault(); prev(); }
+  else if (e.key === 'r' || e.key === 'R'){ e.preventDefault(); replay(); }
+});
+
+// 页面被隐藏时掐掉正在播的音频，回来时重新申请常亮
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') stopAudio();
+});
+
+// ==================================================================== 启动
+requestWakeLock();
+if (deviceToken) loadSession();
+else { showView('bind'); }
+</script>
+</body>
+</html>

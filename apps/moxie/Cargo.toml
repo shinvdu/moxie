@@ -1,0 +1,43 @@
+[package]
+name = "operon-moxie"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+operon-core = { path = "../../crates/core" }
+operon-dynamo = { path = "../../crates/dynamo" }
+operon-s3 = { path = "../../crates/s3" }
+
+axum.workspace = true
+# 显式要 "time"：tts.rs 用 tokio::time::sleep 做重试退避。
+# 不能只依赖其他依赖碰巧把该特性合并进来。
+tokio = { workspace = true, features = ["time"] }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+rand.workspace = true
+sha2.workspace = true
+hex.workspace = true
+
+aws-config = "1"
+aws-sdk-polly = "1"
+aws-sdk-bedrockruntime = "1"
+
+# 密码哈希：operon 现有的明文常量时间比对不适用于用户账号
+argon2 = { version = "0.5", features = ["std"] }
+# 浏览器上传的图片是 base64
+base64 = "0.23.1"
+# 并发调 Polly
+futures = "0.3"
+# 设备令牌哈希的常量时间比对
+subtle = "2"
+# OCR 降级路径调 GLM-4V
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

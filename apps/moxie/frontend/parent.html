@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<title>默写家长端 · Moxie</title>
+<style>
+  :root {
+    --primary: #2563eb; --primary-dark: #1e40af; --bg: #0b1220; --bg-soft: #111a2e;
+    --card: #16203a; --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+    --success: #22c55e; --error: #ef4444;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+    font-size: 16px; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 0 16px; }
+  .hidden { display: none !important; }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #1e293b; gap: 10px; }
+  .brand { font-weight: 700; font-size: 1.05rem; white-space: nowrap; }
+  .brand span { color: var(--accent); }
+  .top-right { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
+  .top-right .nick { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ---------- 按钮 ---------- */
+  .btn {
+    padding: 12px 18px; border-radius: 8px; border: none; cursor: pointer;
+    font-size: 1rem; font-family: inherit; background: var(--primary); color: #fff;
+    min-height: 46px; transition: opacity .15s;
+  }
+  .btn:hover { opacity: .9; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid #334155; color: var(--text); }
+  .btn-sm { padding: 8px 12px; min-height: 40px; font-size: .88rem; }
+  .btn-danger { background: transparent; border: 1px solid rgba(239,68,68,.5); color: var(--error); }
+  .btn-block { width: 100%; }
+
+  /* ---------- 卡片 / 表单 ---------- */
+  .card { background: var(--card); border: 1px solid #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .card-title { font-size: 1rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card-title .hint { font-size: .8rem; font-weight: 400; color: var(--muted); }
+  label { display: block; font-size: .88rem; color: var(--muted); margin-bottom: 6px; }
+  input[type=text], input[type=password], input[type=tel], input[type=number], textarea, select {
+    width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #334155;
+    background: var(--bg); color: var(--text); font-size: 1rem; font-family: inherit;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--primary); }
+  .field { margin-bottom: 14px; }
+  textarea { min-height: 140px; resize: vertical; line-height: 1.7; }
+  .row2 { display: flex; gap: 10px; }
+  .row2 > * { flex: 1; }
+  .form-card { background: var(--card); border: 1px solid #1e293b; border-radius: 16px; padding: 24px 20px; }
+
+  /* ---------- 登录 ---------- */
+  .login-wrap { padding: 40px 16px 60px; }
+  .login-head { text-align: center; margin-bottom: 22px; }
+  .login-head h1 { font-size: 1.5rem; margin-bottom: 6px; }
+  .login-head p { color: var(--muted); font-size: .9rem; }
+  .tabs { display: flex; background: var(--bg-soft); border-radius: 10px; padding: 4px; margin-bottom: 20px; }
+  .tabs button {
+    flex: 1; padding: 10px; border: none; background: transparent; color: var(--muted);
+    border-radius: 8px; font-size: .95rem; font-family: inherit; cursor: pointer;
+  }
+  .tabs button.active { background: var(--primary); color: #fff; font-weight: 600; }
+
+  /* ---------- 提示 ---------- */
+  .msg { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: .9rem; display: none; white-space: pre-line; }
+  .msg.err { display: block; background: rgba(239,68,68,.12); color: var(--error); border: 1px solid rgba(239,68,68,.3); }
+  .msg.ok { display: block; background: rgba(34,197,94,.12); color: var(--success); border: 1px solid rgba(34,197,94,.3); }
+  .msg.info { display: block; background: rgba(56,189,248,.1); color: var(--accent); border: 1px solid rgba(56,189,248,.25); }
+
+  /* ---------- 孩子列表 ---------- */
+  .kid { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid #1e293b; border-radius: 12px; background: var(--bg-soft); margin-bottom: 10px; }
+  .kid-main { flex: 1; min-width: 0; }
+  .kid-name { font-size: 1.1rem; font-weight: 700; }
+  .kid-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: .75rem; background: rgba(56,189,248,.15); color: var(--accent); }
+  .badge.ok { background: rgba(34,197,94,.15); color: var(--success); }
+  .badge.off { background: rgba(148,163,184,.15); color: var(--muted); }
+  .kid-actions { display: flex; flex-direction: column; gap: 6px; }
+  .empty { text-align: center; color: var(--muted); padding: 36px 12px; font-size: .92rem; }
+
+  /* ---------- 词表 ---------- */
+  .word-list { display: flex; flex-direction: column; gap: 8px; }
+  .word-row {
+    display: grid; grid-template-columns: 26px 1fr auto; gap: 6px 10px;
+    align-items: center; padding: 10px; border: 1px solid #1e293b; border-radius: 10px; background: var(--bg-soft);
+  }
+  .word-idx { color: var(--muted); font-size: .8rem; text-align: right; }
+  .word-text { font-size: 1.12rem; font-weight: 600; word-break: break-all; }
+  .word-py { display: inline-block; font-size: .78rem; color: var(--accent); background: rgba(56,189,248,.12); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+  .word-btns { display: flex; gap: 6px; grid-column: 1 / -1; flex-wrap: wrap; }
+  .mini {
+    padding: 7px 12px; border-radius: 8px; border: 1px solid #334155; background: transparent;
+    color: var(--text); font-size: .84rem; font-family: inherit; cursor: pointer; min-height: 36px;
+  }
+  .mini:disabled { opacity: .55; }
+  .mini.pri { border-color: var(--primary); color: #fff; background: var(--primary); }
+  .mini.danger { border-color: rgba(239,68,68,.4); color: var(--error); }
+  .add-row { display: flex; gap: 8px; margin-top: 12px; }
+  .add-row input { flex: 1; }
+  .count-line { color: var(--muted); font-size: .85rem; }
+
+  /* ---------- 底部下发条 ---------- */
+  .push-bar {
+    position: sticky; bottom: 0; z-index: 30; display: flex; align-items: center; gap: 12px;
+    padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--bg) 70%, rgba(11,18,32,0));
+  }
+  .push-bar .info { flex: 1; font-size: .9rem; color: var(--muted); }
+  .push-bar .info b { color: var(--accent); font-size: 1.1rem; }
+  .push-bar .btn { flex: 0 0 auto; }
+
+  /* ---------- 弹窗 ---------- */
+  .mask { position: fixed; inset: 0; background: rgba(2,6,23,.75); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal { background: var(--card); border: 1px solid #1e293b; border-radius: 16px; padding: 20px; width: 100%; max-width: 420px; max-height: 88vh; overflow-y: auto; }
+  .modal h3 { font-size: 1.05rem; margin-bottom: 6px; }
+  .modal .sub { color: var(--muted); font-size: .85rem; margin-bottom: 16px; }
+  .modal-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .code-box { text-align: center; padding: 22px 8px; background: var(--bg-soft); border: 1px solid #1e293b; border-radius: 12px; margin-bottom: 12px; }
+  .code-big {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: clamp(2.4rem, 15vw, 3.4rem); font-weight: 800; letter-spacing: .18em;
+    color: var(--accent); line-height: 1.2; word-break: break-all;
+  }
+  .code-ttl { color: var(--muted); font-size: .85rem; margin-top: 8px; }
+  .code-ttl b { color: var(--text); }
+  details.ref { margin-top: 12px; border: 1px solid #1e293b; border-radius: 10px; padding: 10px 12px; background: var(--bg-soft); }
+  details.ref summary { cursor: pointer; font-size: .88rem; color: var(--accent); }
+  details.ref table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: .9rem; }
+  details.ref td { padding: 5px 4px; border-bottom: 1px solid #1e293b; }
+  details.ref td:first-child { font-weight: 600; }
+  details.ref td:last-child { color: var(--accent); font-family: ui-monospace, monospace; }
+  details.ref tr:last-child td { border-bottom: none; }
+  .fmt-help { font-size: .82rem; color: var(--muted); background: var(--bg-soft); border: 1px solid #1e293b; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+  .fmt-help code { color: var(--accent); font-family: ui-monospace, monospace; }
+  .switch { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); margin-top: 10px; }
+  .switch input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px);
+    background: var(--card); border: 1px solid #334155; color: var(--text);
+    padding: 12px 18px; border-radius: 10px; font-size: .9rem; z-index: 200;
+    max-width: 88vw; text-align: center; opacity: 0; pointer-events: none; transition: all .2s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.err { border-color: rgba(239,68,68,.6); color: var(--error); }
+  .toast.ok { border-color: rgba(34,197,94,.6); color: var(--success); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="topbar">
+    <div class="brand">Moxie <span>默写</span> · 家长端</div>
+    <div class="top-right" id="topRight"></div>
+  </div>
+</div>
+
+<!-- ============ 视图一：登录 / 注册 ============ -->
+<div id="loginView" class="container login-wrap">
+  <div class="login-head">
+    <h1>家长端</h1>
+    <p>录词 → 试听纠错 → 一键下发到孩子平板</p>
+  </div>
+  <div class="form-card">
+    <div class="tabs">
+      <button type="button" id="tabLogin" class="active">登录</button>
+      <button type="button" id="tabRegister">注册</button>
+    </div>
+
+    <!-- 登录表单 -->
+    <form id="loginForm">
+      <div class="field">
+        <label>手机号</label>
+        <input type="tel" id="loginPhone" inputmode="numeric" maxlength="11" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-block" id="loginBtn">登录</button>
+      <div id="loginMsg" class="msg"></div>
+    </form>
+
+    <!-- 注册表单 -->
+    <form id="registerForm" class="hidden">
+      <div class="field">
+        <label>手机号（11 位）</label>
+        <input type="tel" id="regPhone" inputmode="numeric" maxlength="11" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input type="password" id="regPassword" autocomplete="new-password" required>
+      </div>
+      <div class="field">
+        <label>确认密码</label>
+        <input type="password" id="regPassword2" autocomplete="new-password" required>
+      </div>
+      <div class="field">
+        <label>昵称（可选）</label>
+        <input type="text" id="regNickname" maxlength="20" placeholder="例如：小明妈妈">
+      </div>
+      <button type="submit" class="btn btn-block" id="registerBtn">注册并登录</button>
+      <div id="registerMsg" class="msg"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ 视图二：孩子列表 ============ -->
+<div id="kidsView" class="container hidden" style="padding-bottom:60px">
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">
+      <span>我的孩子</span>
+      <button class="btn btn-ghost btn-sm" id="addKidToggle">+ 添加孩子</button>
+    </div>
+
+    <!-- 添加孩子表单 -->
+    <div id="addKidForm" class="hidden" style="margin-bottom:16px">
+      <div class="row2">
+        <div class="field">
+          <label>名字</label>
+          <input type="text" id="kidName" maxlength="20" placeholder="小明">
+        </div>
+        <div class="field" style="max-width:110px">
+          <label>年级</label>
+          <input type="number" id="kidGrade" min="1" max="9" value="4">
+        </div>
+      </div>
+      <div class="row2">
+        <button class="btn" id="addKidBtn">确定添加</button>
+        <button class="btn btn-ghost" id="addKidCancel">取消</button>
+      </div>
+      <div id="addKidMsg" class="msg"></div>
+    </div>
+
+    <div id="kidList"></div>
+  </div>
+</div>
+
+<!-- ============ 视图三：录入并下发 ============ -->
+<div id="pushView" class="container hidden">
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">
+      <span id="pushKidLabel">录入词表</span>
+      <button class="btn btn-ghost btn-sm" id="backBtn">← 返回</button>
+    </div>
+
+    <!-- 录入方式 Tab -->
+    <div class="tabs">
+      <button type="button" id="tabPaste" class="active">粘贴文本</button>
+      <button type="button" id="tabPhoto">拍照 / 相册</button>
+    </div>
+
+    <!-- 方式一：粘贴文本 -->
+    <div id="pastePanel">
+      <textarea id="rawText" placeholder="把词语粘到这里，例如：&#10;生字：繁星 繁华 模糊&#10;第2课《繁星》（标题行会被自动忽略）&#10;&#10;支持换行、空格、逗号、顿号、制表符分隔"></textarea>
+      <div class="count-line" id="parseHint" style="margin-top:8px">识别到 0 个词</div>
+      <label class="switch">
+        <input type="checkbox" id="filterTitles" checked>
+        <span>过滤标题行（含「第X课」「《》」且没有分隔符的行）</span>
+      </label>
+      <div class="row2" style="margin-top:12px">
+        <button class="btn" id="parseReplaceBtn">解析并填入</button>
+        <button class="btn btn-ghost" id="parseAppendBtn">追加到词表</button>
+      </div>
+    </div>
+
+    <!-- 方式二：拍照识别 -->
+    <div id="photoPanel" class="hidden">
+      <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
+      <button class="btn btn-block" id="pickPhotoBtn">📷 拍照 / 从相册选择</button>
+      <div class="count-line" style="margin-top:8px">上传前会自动压缩（长边 ≤1600px）以适配接口限制</div>
+      <div id="ocrMsg" class="msg"></div>
+      <div id="ocrRetryWrap" class="hidden" style="margin-top:10px">
+        <button class="btn btn-ghost btn-block" id="ocrRetryBtn">重试识别</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 词表预览与编辑 -->
+  <div class="card">
+    <div class="card-title">
+      <span>词表预览</span>
+      <span class="count-line">共 <b id="wordCount" style="color:var(--accent)">0</b> 个词</span>
+    </div>
+
+    <div class="field">
+      <label>标题（可选）</label>
+      <input type="text" id="listTitle" maxlength="40" placeholder="例如：第2课《繁星》">
+    </div>
+
+    <div class="field">
+      <label>播报遍数</label>
+      <select id="repeatSel">
+        <option value="1" selected>1 遍</option>
+        <option value="2">2 遍</option>
+      </select>
+    </div>
+
+    <div class="word-list" id="wordList"></div>
+
+    <div class="add-row">
+      <input type="text" id="newWord" maxlength="20" placeholder="手动加一个词">
+      <button class="btn btn-sm" id="addWordBtn" style="flex:0 0 auto">添加</button>
+    </div>
+
+    <details class="ref">
+      <summary>拼音格式说明 / 常用词参考</summary>
+      <div class="fmt-help" style="margin-top:10px">
+        声调用数字 <b>1/2/3/4/0</b> 表示（1 阴平、2 阳平、3 上声、4 去声、0 轻声），
+        音节之间用空格分隔，例如：<code>mo2 hu2</code>
+      </div>
+      <table>
+        <tr><td>谈吐</td><td>tan2 tu3</td></tr>
+        <tr><td>模糊</td><td>mo2 hu2</td></tr>
+        <tr><td>模仿</td><td>mo2 fang3</td></tr>
+        <tr><td>糊涂</td><td>hu2 tu0</td></tr>
+        <tr><td>熟悉</td><td>shu2 xi1</td></tr>
+      </table>
+    </details>
+  </div>
+
+  <!-- 下发 -->
+  <div class="card">
+    <div class="card-title"><span>下发到平板</span></div>
+    <div style="font-size:.88rem;color:var(--muted)">
+      下发后孩子平板会按顺序念出每个词，孩子听到后写下词语。
+    </div>
+    <div id="pushResult" class="msg"></div>
+  </div>
+
+  <div class="push-bar">
+    <div class="info">共 <b id="barCount">0</b> 个词</div>
+    <button class="btn" id="pushBtn">下发给孩子</button>
+  </div>
+</div>
+
+<!-- 拼音修改弹窗 -->
+<div id="pinyinModal" class="mask hidden">
+  <div class="modal">
+    <h3>改拼音 · <span id="pyWord" style="color:var(--accent)"></span></h3>
+    <div class="sub">读音不对时，填上正确拼音后重新生成音频</div>
+    <div class="fmt-help">
+      声调用数字 <b>1/2/3/4/0</b> 表示（1 阴平、2 阳平、3 上声、4 去声、0 轻声），
+      音节间用空格分隔，例：<code>mo2 hu2</code>
+    </div>
+    <input type="text" id="pyInput" placeholder="例如：mo2 hu2" autocomplete="off">
+    <details class="ref">
+      <summary>常用词参考（点开）</summary>
+      <table>
+        <tr><td>谈吐</td><td>tan2 tu3</td></tr>
+        <tr><td>模糊</td><td>mo2 hu2</td></tr>
+        <tr><td>模仿</td><td>mo2 fang3</td></tr>
+        <tr><td>糊涂</td><td>hu2 tu0</td></tr>
+        <tr><td>熟悉</td><td>shu2 xi1</td></tr>
+      </table>
+    </details>
+    <div class="modal-btns">
+      <button class="btn" id="pySavePlay">保存并试听</button>
+      <button class="btn btn-ghost" id="pySaveOnly">仅保存</button>
+      <button class="btn btn-ghost hidden" id="pyClear">清除拼音（恢复自动读音）</button>
+      <button class="btn btn-ghost" id="pyCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 绑定码弹窗 -->
+<div id="bindModal" class="mask hidden">
+  <div class="modal">
+    <h3>平板绑定码</h3>
+    <div class="sub">在孩子平板上打开默写页面，输入下面的 6 位码完成绑定</div>
+    <div class="code-box">
+      <div class="code-big" id="bindCode">------</div>
+      <div class="code-ttl" id="bindTtl">5 分钟内有效</div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" id="bindClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+'use strict';
+
+/* ============================================================
+ * 常量与全局状态
+ * ============================================================ */
+const TOKEN_KEY = 'moxie_token';
+const UID_KEY   = 'moxie_user_id';
+const NICK_KEY  = 'moxie_nickname';
+const MAX_WORDS = 200; // 与后端 handlers.rs 的 MAX_WORDS 保持一致
+
+let kids = [];            // 孩子列表
+let currentKid = null;    // 当前正在录词的孩子
+let words = [];           // [{ text, pinyin }]
+let lastOcrImage = null;  // { image_base64, media_type } —— 供失败重试复用
+let currentAudio = null;  // 正在播放的 Audio
+const audioCache = new Map(); // text|pinyin -> { a1, a2 }
+let bindTimer = null;
+
+/* ============================================================
+ * 工具函数
+ * ============================================================ */
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function getToken() { return localStorage.getItem(TOKEN_KEY); }
+
+function saveAuth(data) {
+  localStorage.setItem(TOKEN_KEY, data.token);
+  localStorage.setItem(UID_KEY, data.user_id || '');
+  if (data.nickname) localStorage.setItem(NICK_KEY, data.nickname);
+}
+
+function clearAuth() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(UID_KEY);
+  localStorage.removeItem(NICK_KEY);
+}
+
+function nickname() { return localStorage.getItem(NICK_KEY) || '家长'; }
+
+/** SHA-256 十六进制小写 —— CloudFront/Function URL 要求 POST 必带 x-amz-content-sha256 */
+async function sha256Hex(text) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * 统一请求封装。
+ * - POST/PUT 自动带 x-amz-content-sha256
+ * - 认证走 X-Authorization（CloudFront OAC 占用了 Authorization）
+ * - 401 → 清 token 回登录；403 → 提示无权限
+ * - auth:false 用于登录/注册接口，避免把「密码错误」误判成登录过期
+ */
+async function api(path, { method = 'GET', body = null, auth = true } = {}) {
+  const headers = {};
+  if (body) {
+    headers['Content-Type'] = 'application/json';
+    headers['x-amz-content-sha256'] = await sha256Hex(body);
+  }
+  const token = getToken();
+  if (auth && token) headers['X-Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(path, { method, headers, body });
+  let data = {};
+  try { data = await res.json(); } catch (_) { /* 空响应体 */ }
+
+  if (auth && res.status === 401) {
+    clearAuth();
+    showLogin();
+    throw new Error('登录已过期，请重新登录');
+  }
+  if (res.status === 403) {
+    throw new Error(data.error?.message || '无权限访问该资源（可能不是你的孩子）');
+  }
+  if (!res.ok) {
+    throw new Error(data.error?.message || `请求失败（${res.status}）`);
+  }
+  return data;
+}
+
+let toastTimer = null;
+function toast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type === 'err' ? ' err' : type === 'ok' ? ' ok' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, 3200);
+}
+
+/** 设置某个按钮的加载态 */
+function setBusy(btn, busy, busyText) {
+  if (!btn) return;
+  if (busy) {
+    btn.dataset.oldText = btn.textContent;
+    btn.textContent = busyText || '处理中…';
+    btn.disabled = true;
+  } else {
+    if (btn.dataset.oldText) btn.textContent = btn.dataset.oldText;
+    btn.disabled = false;
+  }
+}
+
+function showMsg(id, text, kind) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'msg' + (kind ? ' ' + kind : '');
+  el.textContent = text || '';
+  el.style.display = text ? 'block' : 'none';
+}
+
+function clearMsg(id) {
+  const el = document.getElementById(id);
+  if (el) { el.className = 'msg'; el.textContent = ''; el.style.display = 'none'; }
+}
+
+/* ============================================================
+ * 视图切换
+ * ============================================================ */
+function hideAllViews() {
+  ['loginView', 'kidsView', 'pushView'].forEach(id => document.getElementById(id).classList.add('hidden'));
+}
+
+function showLogin() {
+  hideAllViews();
+  document.getElementById('loginView').classList.remove('hidden');
+  document.getElementById('topRight').innerHTML = '';
+}
+
+function showKids() {
+  hideAllViews();
+  document.getElementById('kidsView').classList.remove('hidden');
+  document.getElementById('topRight').innerHTML =
+    `<span class="nick">${escapeHtml(nickname())}</span>` +
+    `<button class="btn btn-ghost btn-sm" id="logoutBtn">退出登录</button>`;
+  document.getElementById('logoutBtn').onclick = doLogout;
+}
+
+function showPush() { hideAllViews(); document.getElementById('pushView').classList.remove('hidden'); }
+
+function doLogout() {
+  clearAuth();
+  kids = []; words = []; currentKid = null; audioCache.clear();
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  showLogin();
+}
+
+/* ============================================================
+ * 一、注册 / 登录
+ * ============================================================ */
+document.getElementById('tabLogin').addEventListener('click', () => switchAuthTab('login'));
+document.getElementById('tabRegister').addEventListener('click', () => switchAuthTab('register'));
+
+function switchAuthTab(which) {
+  const isLogin = which === 'login';
+  document.getElementById('tabLogin').classList.toggle('active', isLogin);
+  document.getElementById('tabRegister').classList.toggle('active', !isLogin);
+  document.getElementById('loginForm').classList.toggle('hidden', !isLogin);
+  document.getElementById('registerForm').classList.toggle('hidden', isLogin);
+  clearMsg('loginMsg'); clearMsg('registerMsg');
+}
+
+// 登录
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearMsg('loginMsg');
+  const btn = document.getElementById('loginBtn');
+  const phone = document.getElementById('loginPhone').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if (!/^\d{11}$/.test(phone)) return showMsg('loginMsg', '手机号必须是 11 位数字', 'err');
+
+  setBusy(btn, true, '登录中…');
+  try {
+    const data = await api('/api/auth/login', {
+      method: 'POST', auth: false,
+      body: JSON.stringify({ phone, password }),
+    });
+    saveAuth(data);
+    document.getElementById('loginPassword').value = '';
+    await enterApp();
+  } catch (err) {
+    showMsg('loginMsg', '❌ ' + err.message, 'err');
+  } finally {
+    setBusy(btn, false);
+  }
+});
+
+// 注册
+document.getElementById('registerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearMsg('registerMsg');
+  const btn = document.getElementById('registerBtn');
+  const phone = document.getElementById('regPhone').value.trim();
+  const password = document.getElementById('regPassword').value;
+  const password2 = document.getElementById('regPassword2').value;
+  const nick = document.getElementById('regNickname').value.trim();
+
+  // 前端校验
+  if (!/^\d{11}$/.test(phone)) return showMsg('registerMsg', '手机号必须是 11 位数字', 'err');
+  if (!password) return showMsg('registerMsg', '请输入密码', 'err');
+  if (password !== password2) return showMsg('registerMsg', '两次输入的密码不一致', 'err');
+
+  setBusy(btn, true, '注册中…');
+  try {
+    const payload = { phone, password };
+    if (nick) payload.nickname = nick;
+    const data = await api('/api/auth/register', {
+      method: 'POST', auth: false,
+      body: JSON.stringify(payload),
+    });
+    saveAuth(data);
+    await enterApp();
+  } catch (err) {
+    showMsg('registerMsg', '❌ ' + err.message, 'err');
+  } finally {
+    setBusy(btn, false);
+  }
+});
+
+/* ============================================================
+ * 二、孩子列表
+ * ============================================================ */
+async function enterApp() {
+  showKids();
+  await loadKids();
+}
+
+async function loadKids() {
+  const box = document.getElementById('kidList');
+  box.innerHTML = '<div class="empty">加载中…</div>';
+  try {
+    const data = await api('/api/kids');
+    kids = Array.isArray(data) ? data : (data.kids || []);
+    renderKids();
+  } catch (err) {
+    box.innerHTML = `<div class="empty" style="color:var(--error)">加载失败：${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function renderKids() {
+  const box = document.getElementById('kidList');
+  if (!kids.length) {
+    box.innerHTML = '<div class="empty">还没有孩子，点右上角「+ 添加孩子」开始吧</div>';
+    return;
+  }
+  box.innerHTML = kids.map(k => {
+    const boundBadge = k.bound
+      ? '<span class="badge ok">● 已绑定平板</span>'
+      : '<span class="badge off">● 未绑定</span>';
+    const gradeBadge = k.grade ? `<span class="badge">${escapeHtml(k.grade)} 年级</span>` : '';
+    const bindBtn = k.bound
+      ? `<button class="btn btn-danger btn-sm" data-act="unbind" data-id="${escapeHtml(k.kid_id)}">解绑</button>`
+      : `<button class="btn btn-ghost btn-sm" data-act="bind" data-id="${escapeHtml(k.kid_id)}">绑定平板</button>`;
+    return `
+      <div class="kid">
+        <div class="kid-main">
+          <div class="kid-name">${escapeHtml(k.name)}</div>
+          <div class="kid-meta">${gradeBadge}${boundBadge}</div>
+        </div>
+        <div class="kid-actions">
+          <button class="btn btn-sm" data-act="open" data-id="${escapeHtml(k.kid_id)}">录入并下发 →</button>
+          ${bindBtn}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// 孩子卡片上的按钮（事件委托）
+document.getElementById('kidList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const kid = kids.find(k => k.kid_id === btn.dataset.id);
+  if (!kid) return;
+
+  if (btn.dataset.act === 'open') {
+    openPushView(kid);
+  } else if (btn.dataset.act === 'bind') {
+    setBusy(btn, true, '生成中…');
+    try {
+      const data = await api(`/api/kids/${encodeURIComponent(kid.kid_id)}/bind-code`, { method: 'POST', body: '{}' });
+      openBindModal(data);
+    } catch (err) {
+      toast('生成绑定码失败：' + err.message, 'err');
+    } finally {
+      setBusy(btn, false);
+    }
+  } else if (btn.dataset.act === 'unbind') {
+    if (!confirm(`确定解绑「${kid.name}」的平板吗？解绑后孩子端需要重新绑定。`)) return;
+    setBusy(btn, true, '解绑中…');
+    try {
+      await api(`/api/kids/${encodeURIComponent(kid.kid_id)}/device`, { method: 'DELETE' });
+      toast('已解绑', 'ok');
+      await loadKids();
+    } catch (err) {
+      toast('解绑失败：' + err.message, 'err');
+      setBusy(btn, false);
+    }
+  }
+});
+
+// 「+ 添加孩子」展开/收起
+document.getElementById('addKidToggle').addEventListener('click', () => {
+  const f = document.getElementById('addKidForm');
+  f.classList.toggle('hidden');
+  if (!f.classList.contains('hidden')) document.getElementById('kidName').focus();
+});
+document.getElementById('addKidCancel').addEventListener('click', () => {
+  document.getElementById('addKidForm').classList.add('hidden');
+  clearMsg('addKidMsg');
+});
+
+document.getElementById('addKidBtn').addEventListener('click', async () => {
+  clearMsg('addKidMsg');
+  const btn = document.getElementById('addKidBtn');
+  const name = document.getElementById('kidName').value.trim();
+  const gradeRaw = document.getElementById('kidGrade').value.trim();
+  if (!name) return showMsg('addKidMsg', '请输入孩子的名字', 'err');
+
+  const payload = { name };
+  if (gradeRaw) payload.grade = parseInt(gradeRaw, 10);
+
+  setBusy(btn, true, '添加中…');
+  try {
+    await api('/api/kids', { method: 'POST', body: JSON.stringify(payload) });
+    document.getElementById('kidName').value = '';
+    document.getElementById('addKidForm').classList.add('hidden');
+    toast('已添加', 'ok');
+    await loadKids();
+  } catch (err) {
+    showMsg('addKidMsg', '❌ ' + err.message, 'err');
+  } finally {
+    setBusy(btn, false);
+  }
+});
+
+/* ============================================================
+ * 四、绑定码弹窗
+ * ============================================================ */
+function openBindModal(data) {
+  const secs = Number(data.expires_in) || 300;
+  document.getElementById('bindCode').textContent = data.code || '------';
+  const ttlEl = document.getElementById('bindTtl');
+  document.getElementById('bindModal').classList.remove('hidden');
+
+  clearInterval(bindTimer);
+  let left = secs;
+  const tick = () => {
+    if (left <= 0) {
+      clearInterval(bindTimer);
+      ttlEl.innerHTML = '<b style="color:var(--error)">已过期</b>，请重新生成';
+      return;
+    }
+    const m = String(Math.floor(left / 60)).padStart(2, '0');
+    const s = String(left % 60).padStart(2, '0');
+    ttlEl.innerHTML = `剩余 <b>${m}:${s}</b> · ${Math.round(secs / 60)} 分钟内有效`;
+    left--;
+  };
+  tick();
+  bindTimer = setInterval(tick, 1000);
+}
+
+function closeBindModal() {
+  clearInterval(bindTimer);
+  bindTimer = null;
+  document.getElementById('bindModal').classList.add('hidden');
+}
+document.getElementById('bindClose').addEventListener('click', closeBindModal);
+document.getElementById('bindModal').addEventListener('click', (e) => {
+  if (e.target.id === 'bindModal') closeBindModal();
+});
+
+/* ============================================================
+ * 三、下发词表 —— 进入界面
+ * ============================================================ */
+function openPushView(kid) {
+  // 换孩子时重置词表，同一个孩子则保留已录入的内容
+  if (!currentKid || currentKid.kid_id !== kid.kid_id) {
+    words = [];
+    document.getElementById('rawText').value = '';
+    document.getElementById('listTitle').value = '';
+    document.getElementById('repeatSel').value = '1';
+  }
+  currentKid = kid;
+  document.getElementById('pushKidLabel').textContent = `给「${kid.name}」录词`;
+  clearMsg('pushResult'); clearMsg('ocrMsg');
+  document.getElementById('ocrRetryWrap').classList.add('hidden');
+  switchInputTab('paste');
+  renderWords();
+  updateParseHint();
+  showPush();
+  window.scrollTo(0, 0);
+}
+
+document.getElementById('backBtn').addEventListener('click', () => {
+  showKids();
+  loadKids();
+});
+
+/* ---------- 录入方式 Tab ---------- */
+document.getElementById('tabPaste').addEventListener('click', () => switchInputTab('paste'));
+document.getElementById('tabPhoto').addEventListener('click', () => switchInputTab('photo'));
+
+function switchInputTab(which) {
+  const isPaste = which === 'paste';
+  document.getElementById('tabPaste').classList.toggle('active', isPaste);
+  document.getElementById('tabPhoto').classList.toggle('active', !isPaste);
+  document.getElementById('pastePanel').classList.toggle('hidden', !isPaste);
+  document.getElementById('photoPanel').classList.toggle('hidden', isPaste);
+}
+
+/* ============================================================
+ * (a) 词表解析 —— 宽容的分词规则
+ * ============================================================ */
+// 词条首尾要剥掉的标点（刻意不含书名号 —— 书名号单独按「整体包裹」处理，免得剥出半个）
+const EDGE_PUNCT = '\\s\\u3000。．.，,、；;：:！!？?“”"\'‘’（）()【】\\[\\]…·\\-—～~|';
+const EDGE_RE = new RegExp(`^[${EDGE_PUNCT}]+|[${EDGE_PUNCT}]+$`, 'g');
+// 整条被书名号包住：《繁星》→ 繁星
+const WRAPPED_RE = /^[《〈](.+)[》〉]$/;
+// 纯标点 / 符号 / 空白 → 丢弃
+const ONLY_PUNCT_RE = /^[\p{P}\p{S}\s]+$/u;
+// 纯阿拉伯数字（多半是「1、」「2.」这类序号）→ 丢弃（语文词表里不会有这种词）
+const ONLY_DIGIT_RE = /^[0-9０-９]+$/;
+// 行内分隔符：空白/逗号/顿号/分号/制表符/竖线 + 句末标点
+const SEP_RE = /[\s　,，、;；\t|。．！!？?]+/;
+// 判断「这行有没有分隔符」（不含句末标点，专供标题行判定，避免「第2课《繁星》。」被漏判）
+const LINE_SEP_RE = /[\s　,，、;；\t|]/;
+// 行级标题特征：第X课 / 书名号
+const TITLE_HINT_RE = /(第\s*[0-9０-９一二三四五六七八九十百千]+\s*(课|单元|节|讲|章)|[《》〈〉])/;
+// 词级标题特征：词条里出现「第X课」
+const TITLE_TOKEN_RE = /第\s*[0-9０-９一二三四五六七八九十百千]+\s*(课|单元|节|讲|章)/;
+
+/**
+ * 把家长粘贴的原始文本解析成词条数组。
+ * 规则：按行/空格/逗号/顿号/制表符分隔；处理「生字：词1 词2」；忽略空行与纯标点；
+ * 去重（保持首次出现顺序）；可选过滤标题行。
+ */
+function parseWords(raw, filterTitleLines) {
+  const out = [];
+  const seen = new Set();
+
+  for (const rawLine of String(raw || '').split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    // 标题行：含「第X课」或书名号，且整行没有任何分隔符 → 整行丢弃
+    if (filterTitleLines && TITLE_HINT_RE.test(line) && !LINE_SEP_RE.test(line)) continue;
+
+    for (let tok of line.split(SEP_RE)) {
+      // 1) 去掉「生字：」「词语:」这类前缀，取冒号后面的内容
+      tok = tok.replace(/^[^：:]{0,12}[：:]/, '');
+      // 2) 整条被书名号包住的，取里面的内容
+      const wrapped = tok.match(WRAPPED_RE);
+      if (wrapped) tok = wrapped[1];
+      // 3) 剥掉首尾标点（跑两遍，处理叠加情况）
+      for (let i = 0; i < 2; i++) {
+        const next = tok.replace(EDGE_RE, '');
+        if (next === tok) break;
+        tok = next;
+      }
+      tok = tok.trim();
+      // 4) 丢弃空串、纯标点、纯数字序号
+      if (!tok || ONLY_PUNCT_RE.test(tok) || ONLY_DIGIT_RE.test(tok)) continue;
+      // 5) 丢弃「第2课」这类词级标题
+      if (filterTitleLines && TITLE_TOKEN_RE.test(tok)) continue;
+      // 6) 去重，保持首次出现顺序
+      if (seen.has(tok)) continue;
+      seen.add(tok);
+      out.push(tok);
+    }
+  }
+  return out;
+}
+
+function titlesFilterOn() { return document.getElementById('filterTitles').checked; }
+
+/** 实时提示识别到的词数（不改变词表） */
+function updateParseHint() {
+  const n = parseWords(document.getElementById('rawText').value, titlesFilterOn()).length;
+  document.getElementById('parseHint').textContent = `识别到 ${n} 个词`;
+}
+
+let hintTimer = null;
+document.getElementById('rawText').addEventListener('input', () => {
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(updateParseHint, 250);
+});
+document.getElementById('filterTitles').addEventListener('change', updateParseHint);
+
+function mergeWords(list) {
+  const seen = new Set(words.map(w => w.text));
+  let added = 0;
+  for (const t of list) {
+    if (seen.has(t)) continue;
+    seen.add(t);
+    words.push({ text: t, pinyin: null });
+    added++;
+  }
+  return added;
+}
+
+// 解析并替换
+document.getElementById('parseReplaceBtn').addEventListener('click', () => {
+  const list = parseWords(document.getElementById('rawText').value, titlesFilterOn());
+  if (!list.length) return toast('没有解析出词语，检查一下内容', 'err');
+  words = list.map(t => ({ text: t, pinyin: null }));
+  renderWords();
+  toast(`已填入 ${list.length} 个词`, 'ok');
+});
+
+// 追加
+document.getElementById('parseAppendBtn').addEventListener('click', () => {
+  const list = parseWords(document.getElementById('rawText').value, titlesFilterOn());
+  if (!list.length) return toast('没有解析出词语，检查一下内容', 'err');
+  const added = mergeWords(list);
+  renderWords();
+  toast(added ? `新增 ${added} 个词` : '没有新词（都已存在）', added ? 'ok' : 'info');
+});
+
+/* ============================================================
+ * (a-2) 拍照识别 —— 压缩后上传
+ * ============================================================ */
+
+/**
+ * 用 canvas 压缩图片：长边缩到 ≤ maxSide，导出 JPEG。
+ * 返回去掉 `data:image/jpeg;base64,` 前缀的 base64。
+ */
+async function compressImage(file, maxSide = 1600, quality = 0.75) {
+  const dataUrl = await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = () => reject(new Error('读取图片失败'));
+    fr.readAsDataURL(file);
+  });
+
+  const img = await new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('图片解码失败，换一张试试'));
+    im.src = dataUrl;
+  });
+
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  const longSide = Math.max(w, h);
+  const scale = longSide > maxSide ? maxSide / longSide : 1;
+  const cw = Math.max(1, Math.round(w * scale));
+  const ch = Math.max(1, Math.round(h * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext('2d');
+  // 铺白底，避免透明 PNG 转 JPEG 后变黑
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, cw, ch);
+  ctx.drawImage(img, 0, 0, cw, ch);
+
+  const out = canvas.toDataURL('image/jpeg', quality);
+  const comma = out.indexOf(',');
+  return comma >= 0 ? out.slice(comma + 1) : out;
+}
+
+document.getElementById('pickPhotoBtn').addEventListener('click', () => {
+  document.getElementById('photoInput').click();
+});
+
+document.getElementById('photoInput').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = ''; // 允许再次选同一张
+  if (!file) return;
+  clearMsg('ocrMsg');
+  document.getElementById('ocrRetryWrap').classList.add('hidden');
+
+  const btn = document.getElementById('pickPhotoBtn');
+  setBusy(btn, true, '压缩中…');
+  try {
+    const base64 = await compressImage(file);
+    // Lambda payload 上限 6MB，压缩后仍过大就直接拦下
+    const bytes = Math.floor(base64.length * 3 / 4);
+    if (bytes > 5 * 1024 * 1024) throw new Error('图片压缩后仍然过大，请离近一点重拍');
+    lastOcrImage = { image_base64: base64, media_type: 'image/jpeg' };
+    setBusy(btn, false);
+    await runOcr();
+  } catch (err) {
+    setBusy(btn, false);
+    showMsg('ocrMsg', '❌ ' + err.message, 'err');
+  }
+});
+
+/** 调用 OCR 接口（失败可用 lastOcrImage 重试，无需重新拍照） */
+async function runOcr() {
+  if (!lastOcrImage) return;
+  const btn = document.getElementById('pickPhotoBtn');
+  setBusy(btn, true, '识别中…');
+  showMsg('ocrMsg', '识别中…（一般需要 2～5 秒）', 'info');
+  document.getElementById('ocrRetryWrap').classList.add('hidden');
+
+  try {
+    const data = await api('/api/ocr', {
+      method: 'POST',
+      body: JSON.stringify({ image_base64: lastOcrImage.image_base64, media_type: lastOcrImage.media_type }),
+    });
+    const list = Array.isArray(data.words) ? data.words : [];
+    if (!list.length) throw new Error('这张图没识别出词语，换一张更清晰的试试');
+    const added = mergeWords(list);
+    renderWords();
+    showMsg('ocrMsg', `✅ 识别到 ${list.length} 个词，新增 ${added} 个（已去重）`, 'ok');
+  } catch (err) {
+    showMsg('ocrMsg', '❌ ' + err.message, 'err');
+    document.getElementById('ocrRetryWrap').classList.remove('hidden');
+  } finally {
+    setBusy(btn, false);
+  }
+}
+
+document.getElementById('ocrRetryBtn').addEventListener('click', runOcr);
+
+/* ============================================================
+ * (b) 词表预览与编辑
+ * ============================================================ */
+function renderWords() {
+  const box = document.getElementById('wordList');
+  document.getElementById('wordCount').textContent = words.length;
+  document.getElementById('barCount').textContent = words.length;
+
+  if (!words.length) {
+    box.innerHTML = '<div class="empty" style="padding:22px 8px">还没有词 —— 上面粘贴或拍照识别，也可以在下方手动添加</div>';
+    return;
+  }
+
+  box.innerHTML = words.map((w, i) => `
+    <div class="word-row">
+      <span class="word-idx">${i + 1}</span>
+      <span class="word-text">${escapeHtml(w.text)}${w.pinyin ? `<span class="word-py">${escapeHtml(w.pinyin)}</span>` : ''}</span>
+      <span></span>
+      <div class="word-btns">
+        <button class="mini pri" data-act="play" data-i="${i}">▶ 试听</button>
+        <button class="mini" data-act="pinyin" data-i="${i}">改拼音</button>
+        <button class="mini danger" data-act="del" data-i="${i}">删除</button>
+      </div>
+    </div>`).join('');
+}
+
+// 词表按钮（事件委托）
+document.getElementById('wordList').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const i = Number(btn.dataset.i);
+  const w = words[i];
+  if (!w) return;
+
+  if (btn.dataset.act === 'play') {
+    playPreview(w, btn);
+  } else if (btn.dataset.act === 'pinyin') {
+    openPinyinModal(w, i, btn);
+  } else if (btn.dataset.act === 'del') {
+    words.splice(i, 1);
+    renderWords();
+  }
+});
+
+function playAudio(src) {
+  if (!src) return toast('没有可播放的音频', 'err');
+  try {
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    currentAudio = new Audio(src);
+    const p = currentAudio.play();
+    if (p && p.catch) p.catch(err => toast('播放失败：' + err.message, 'err'));
+  } catch (err) {
+    toast('播放失败：' + err.message, 'err');
+  }
+}
+
+/** 试听：POST /api/preview → 播放 a1（结果本地缓存，重复试听不再请求） */
+async function playPreview(w, btn) {
+  const key = `${w.text}|${w.pinyin || ''}`;
+  setBusy(btn, true, '生成中…');
+  try {
+    let res = audioCache.get(key);
+    if (!res) {
+      res = await api('/api/preview', {
+        method: 'POST',
+        body: JSON.stringify({ text: w.text, pinyin: w.pinyin || null }),
+      });
+      audioCache.set(key, res);
+    }
+    playAudio(res.a1);
+    setBusy(btn, false);
+  } catch (err) {
+    setBusy(btn, false);
+    toast('试听失败：' + err.message, 'err');
+  }
+}
+
+// 手动追加词
+document.getElementById('addWordBtn').addEventListener('click', addWordFromInput);
+document.getElementById('newWord').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); addWordFromInput(); }
+});
+
+function addWordFromInput() {
+  const input = document.getElementById('newWord');
+  const t = input.value.trim();
+  if (!t) return;
+  if (words.some(w => w.text === t)) { toast('这个词已经在列表里了', 'info'); input.value = ''; return; }
+  words.push({ text: t, pinyin: null });
+  input.value = '';
+  renderWords();
+}
+
+/* ============================================================
+ * (c) 逐词试听纠错 —— 改拼音弹窗
+ * ============================================================ */
+let pyIndex = -1;
+
+function openPinyinModal(w, i, btn) {
+  pyIndex = i;
+  document.getElementById('pyWord').textContent = w.text;
+  const input = document.getElementById('pyInput');
+  input.value = w.pinyin || '';
+  document.getElementById('pyClear').classList.toggle('hidden', !w.pinyin);
+  document.getElementById('pinyinModal').classList.remove('hidden');
+  input.focus();
+}
+
+function closePinyinModal() {
+  document.getElementById('pinyinModal').classList.add('hidden');
+  pyIndex = -1;
+}
+
+/** 保存弹窗里的拼音；play=true 时立即试听 */
+async function savePinyin(play) {
+  const w = words[pyIndex];
+  if (!w) return closePinyinModal();
+  const val = document.getElementById('pyInput').value.trim();
+  w.pinyin = val || null;
+  const idx = pyIndex;
+  closePinyinModal();
+  renderWords();
+  if (play) {
+    const btn = document.querySelector(`#wordList button[data-act="play"][data-i="${idx}"]`);
+    await playPreview(w, btn);
+  } else {
+    toast(val ? `已保存拼音：${val}` : '已清除拼音', 'ok');
+  }
+}
+
+document.getElementById('pySavePlay').addEventListener('click', () => savePinyin(true));
+document.getElementById('pySaveOnly').addEventListener('click', () => savePinyin(false));
+document.getElementById('pyCancel').addEventListener('click', closePinyinModal);
+document.getElementById('pyClear').addEventListener('click', () => {
+  document.getElementById('pyInput').value = '';
+  savePinyin(false);
+});
+document.getElementById('pyInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); savePinyin(true); }
+});
+document.getElementById('pinyinModal').addEventListener('click', (e) => {
+  if (e.target.id === 'pinyinModal') closePinyinModal();
+});
+
+/* ============================================================
+ * (d) 下发
+ * ============================================================ */
+document.getElementById('pushBtn').addEventListener('click', async () => {
+  if (!currentKid) return;
+  clearMsg('pushResult');
+
+  if (!words.length) {
+    showMsg('pushResult', '词表是空的，先录入词语吧', 'err');
+    return;
+  }
+  // 后端单次上限 200 个词，先在本地拦一道，省得白跑一趟
+  if (words.length > MAX_WORDS) {
+    showMsg('pushResult', `一次最多下发 ${MAX_WORDS} 个词，当前有 ${words.length} 个，请先删掉一些`, 'err');
+    return;
+  }
+
+  const btn = document.getElementById('pushBtn');
+  const title = document.getElementById('listTitle').value.trim();
+  const repeat = parseInt(document.getElementById('repeatSel').value, 10) || 1;
+
+  const payload = {
+    title: title || null,
+    words: words.map(w => ({ text: w.text, pinyin: w.pinyin || null })),
+    default_repeat: repeat,
+  };
+
+  setBusy(btn, true, '下发中…');
+  showMsg('pushResult', '正在生成音频，首次可能要几秒…', 'info');
+  try {
+    const data = await api(`/api/kids/${encodeURIComponent(currentKid.kid_id)}/push`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const generated = data.generated ?? 0;
+    const cached = data.cached ?? 0;
+    const total = data.total ?? (generated + cached);
+    showMsg('pushResult',
+      `✅ 已下发：新增 ${generated} 段音频，复用 ${cached} 段（共 ${total} 段）。\n去孩子平板上刷新即可开始默写。`,
+      'ok');
+    toast('下发成功', 'ok');
+  } catch (err) {
+    showMsg('pushResult', '❌ 下发失败：' + err.message, 'err');
+  } finally {
+    setBusy(btn, false);
+  }
+});
+
+/* ============================================================
+ * 启动
+ * ============================================================ */
+if (getToken()) {
+  enterApp();
+} else {
+  showLogin();
+}
+</script>
+</body>
+</html>
